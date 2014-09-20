@@ -25,6 +25,7 @@
 package gojws
 
 import (
+	"bytes"
 	"crypto/ecdsa"
 	"crypto/elliptic"
 	"crypto/rsa"
@@ -41,9 +42,17 @@ func TestVerify8_HMAC_SHA26(t *testing.T) {
 		98, 61, 34, 61, 46, 33, 114, 5, 46, 79, 8, 192, 205, 154, 245, 103,
 		208, 128, 163}
 
-	err := Verify(jws, ProviderFromKey(key))
+	data, err := VerifyAndDecode(jws, ProviderFromKey(key))
 	if err != nil {
 		t.Fatal("Verify: ", err)
+	}
+
+	if !bytes.Equal(data, []byte{123, 34, 105, 115, 115, 34, 58, 34, 106, 111, 101, 34, 44, 13, 10,
+		32, 34, 101, 120, 112, 34, 58, 49, 51, 48, 48, 56, 49, 57, 51, 56,
+		48, 44, 13, 10, 32, 34, 104, 116, 116, 112, 58, 47, 47, 101, 120, 97,
+		109, 112, 108, 101, 46, 99, 111, 109, 47, 105, 115, 95, 114, 111,
+		111, 116, 34, 58, 116, 114, 117, 101, 125}) {
+		t.Fatalf("Unexpected payload: %v", data)
 	}
 }
 
@@ -79,9 +88,17 @@ func TestVerify8_RSA_SHA256(t *testing.T) {
 		117, 147, 57, 54, 60, 7, 3, 77, 111, 96, 111, 158,
 		33, 224, 84, 86, 202, 229, 233, 161})
 
-	err := Verify(jws, ProviderFromKey(key))
+	data, err := VerifyAndDecode(jws, ProviderFromKey(key))
 	if err != nil {
 		t.Fatal("Verify: ", err)
+	}
+
+	if !bytes.Equal(data, []byte{123, 34, 105, 115, 115, 34, 58, 34, 106, 111, 101, 34, 44, 13, 10,
+		32, 34, 101, 120, 112, 34, 58, 49, 51, 48, 48, 56, 49, 57, 51, 56,
+		48, 44, 13, 10, 32, 34, 104, 116, 116, 112, 58, 47, 47, 101, 120, 97,
+		109, 112, 108, 101, 46, 99, 111, 109, 47, 105, 115, 95, 114, 111,
+		111, 116, 34, 58, 116, 114, 117, 101, 125}) {
+		t.Fatalf("Unexpected payload: %v", data)
 	}
 }
 
@@ -101,9 +118,17 @@ func TestVerify8_ECDSA_P256_SHA256(t *testing.T) {
 		237, 185, 238, 185, 244, 179, 105, 93, 110, 169, 11,
 		36, 173, 138, 70, 35, 40, 133, 136, 229, 173})
 
-	err := Verify(jws, ProviderFromKey(key))
+	data, err := VerifyAndDecode(jws, ProviderFromKey(key))
 	if err != nil {
 		t.Fatal("Verify: ", err)
+	}
+
+	if !bytes.Equal(data, []byte{123, 34, 105, 115, 115, 34, 58, 34, 106, 111, 101, 34, 44, 13, 10,
+		32, 34, 101, 120, 112, 34, 58, 49, 51, 48, 48, 56, 49, 57, 51, 56,
+		48, 44, 13, 10, 32, 34, 104, 116, 116, 112, 58, 47, 47, 101, 120, 97,
+		109, 112, 108, 101, 46, 99, 111, 109, 47, 105, 115, 95, 114, 111,
+		111, 116, 34, 58, 116, 114, 117, 101, 125}) {
+		t.Fatalf("Unexpected payload: %v", data)
 	}
 }
 
@@ -129,9 +154,13 @@ func TestVerify8_ECDSA_P521_SHA512(t *testing.T) {
 		140, 190, 10, 145, 221, 0, 100, 198, 153, 154, 31,
 		110, 110, 103, 250, 221, 237, 228, 200, 200, 246})
 
-	err := Verify(jws, ProviderFromKey(key))
+	data, err := VerifyAndDecode(jws, ProviderFromKey(key))
 	if err != nil {
 		t.Fatal("Verify: ", err)
+	}
+
+	if !bytes.Equal(data, []byte{80, 97, 121, 108, 111, 97, 100}) {
+		t.Fatalf("Unexpected payload: %v", data)
 	}
 }
 
@@ -139,8 +168,16 @@ func TestVerify8_ECDSA_P521_SHA512(t *testing.T) {
 func TestVerify8_Plaintext(t *testing.T) {
 	const jws = `eyJhbGciOiJub25lIn0.eyJpc3MiOiJqb2UiLA0KICJleHAiOjEzMDA4MTkzODAsDQogImh0dHA6Ly9leGFtcGxlLmNvbS9pc19yb290Ijp0cnVlfQ.`
 
-	err := Verify(jws, ProviderFromKey(NoneKey))
+	data, err := VerifyAndDecode(jws, ProviderFromKey(NoneKey))
 	if err != nil {
 		t.Fatal("Verify: ", err)
+	}
+
+	if !bytes.Equal(data, []byte{123, 34, 105, 115, 115, 34, 58, 34, 106, 111, 101, 34, 44, 13, 10,
+		32, 34, 101, 120, 112, 34, 58, 49, 51, 48, 48, 56, 49, 57, 51, 56,
+		48, 44, 13, 10, 32, 34, 104, 116, 116, 112, 58, 47, 47, 101, 120, 97,
+		109, 112, 108, 101, 46, 99, 111, 109, 47, 105, 115, 95, 114, 111,
+		111, 116, 34, 58, 116, 114, 117, 101, 125}) {
+		t.Fatalf("Unexpected payload: %v", data)
 	}
 }

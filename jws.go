@@ -90,33 +90,33 @@ type Header struct {
 }
 
 // Verify the authenticity of a JWS signature
-func Verify(jws string, kp KeyProvider) error {
+func VerifyAndDecode(jws string, kp KeyProvider) ([]byte, error) {
 	parts := strings.Split(jws, ".")
 	if len(parts) != 3 {
-		return errors.New("Malformed JWS")
+		return nil, errors.New("Malformed JWS")
 	}
 
 	// decode the JWS header
 	var header Header
 	data, err := safeDecode(parts[0])
 	if err != nil {
-		return fmt.Errorf("Malformed JWS header: %v", err)
+		return nil, fmt.Errorf("Malformed JWS header: %v", err)
 	}
 	err = json.Unmarshal(data, &header)
 	if err != nil {
-		return fmt.Errorf("Failed to decode header: %v", err)
+		return nil, fmt.Errorf("Failed to decode header: %v", err)
 	}
 
 	// acquire the public key
 	key, err := kp.GetJWSKey(header)
 	if err != nil {
-		return fmt.Errorf("Failed to acquire public key: %v", err)
+		return nil, fmt.Errorf("Failed to acquire public key: %v", err)
 	}
 
 	// validate the signature
 	signature, err := safeDecode(parts[2])
 	if err != nil {
-		return fmt.Errorf("Malformed JWS signature: %v", err)
+		return nil, fmt.Errorf("Malformed JWS signature: %v", err)
 	}
 
 	switch header.Alg {
@@ -124,13 +124,13 @@ func Verify(jws string, kp KeyProvider) error {
 		// only allow plaintext if the caller explicitly passed in the
 		// "none" public key
 		if key != NoneKey {
-			return errors.New("Refusing to validate plaintext JWS")
+			return nil, errors.New("Refusing to validate plaintext JWS")
 		}
 
 	case ALG_HS256:
 		symmetricKey, ok := key.([]byte)
 		if !ok {
-			return fmt.Errorf("Expected symmetric ([]byte) key. Got %T", key)
+			return nil, fmt.Errorf("Expected symmetric ([]byte) key. Got %T", key)
 		}
 
 		hm := hmac.New(sha256.New, symmetricKey)
@@ -140,7 +140,7 @@ func Verify(jws string, kp KeyProvider) error {
 
 		expectedSignature := hm.Sum(nil)
 		if !hmac.Equal(expectedSignature, signature) {
-			return fmt.Errorf("Signature verification failed")
+			return nil, fmt.Errorf("Signature verification failed")
 		}
 
 	case ALG_RS256:
@@ -148,7 +148,7 @@ func Verify(jws string, kp KeyProvider) error {
 		if !ok {
 			privKey, ok := key.(*rsa.PrivateKey)
 			if !ok {
-				return fmt.Errorf("Expected RSA key. Got %T", key)
+				return nil, fmt.Errorf("Expected RSA key. Got %T", key)
 			}
 			pubKey = &privKey.PublicKey
 		}
@@ -161,7 +161,7 @@ func Verify(jws string, kp KeyProvider) error {
 
 		err = rsa.VerifyPKCS1v15(pubKey, crypto.SHA256, hs.Sum(nil), signature)
 		if err != nil {
-			return fmt.Errorf("Signature verification failed")
+			return nil, fmt.Errorf("Signature verification failed")
 		}
 
 	case ALG_ES256, ALG_ES512:
@@ -169,7 +169,7 @@ func Verify(jws string, kp KeyProvider) error {
 		if !ok {
 			privKey, ok := key.(*ecdsa.PrivateKey)
 			if !ok {
-				return fmt.Errorf("Expected ECDSA key. Got %T", key)
+				return nil, fmt.Errorf("Expected ECDSA key. Got %T", key)
 			}
 
 			pubKey = &privKey.PublicKey
@@ -189,7 +189,7 @@ func Verify(jws string, kp KeyProvider) error {
 
 		// split signature into R and S
 		if len(signature) != rSize+sSize {
-			return fmt.Errorf("Signature verification failed")
+			return nil, fmt.Errorf("Signature verification failed")
 		}
 
 		r, s := new(big.Int), new(big.Int)
@@ -202,12 +202,18 @@ func Verify(jws string, kp KeyProvider) error {
 		io.WriteString(hs, parts[1])
 
 		if !ecdsa.Verify(pubKey, hs.Sum(nil), r, s) {
-			return fmt.Errorf("Signature verification failed")
+			return nil, fmt.Errorf("Signature verification failed")
 		}
 
 	default:
-		return fmt.Errorf("Unknown signature algorithm: %s", header.Alg)
+		return nil, fmt.Errorf("Unknown signature algorithm: %s", header.Alg)
 	}
 
-	return nil
+	// decode the payload
+	payload, err := safeDecode(parts[1])
+	if err != nil {
+		return nil, fmt.Errorf("Malformed JWS payload: %v", err)
+	}
+
+	return payload, nil
 }
