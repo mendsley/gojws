@@ -57,17 +57,39 @@ type NoneKeyType int
 
 const NoneKey = NoneKeyType(0)
 
+// Allows caller access to the JWS header while selecting an
+// appropriate public key.
+type KeyProvider interface {
+	GetJWSKey(h Header) (crypto.PublicKey, error)
+}
+
+// convert a single key into a provider
+func ProviderFromKey(key crypto.PublicKey) KeyProvider {
+	return singleKey{key: key}
+}
+
+type singleKey struct {
+	key crypto.PublicKey
+}
+
+func (sk singleKey) GetJWSKey(h Header) (crypto.PublicKey, error) {
+	return sk.key, nil
+}
+
+// JWS header
+type Header struct {
+	Alg Algorithm `json:"alg"`
+}
+
 // Verify the authenticity of a JWS signature
-func Verify(jws string, key crypto.PublicKey) error {
+func Verify(jws string, kp KeyProvider) error {
 	parts := strings.Split(jws, ".")
 	if len(parts) != 3 {
 		return errors.New("Malformed JWS")
 	}
 
 	// decode the JWS header
-	var header struct {
-		Alg Algorithm `json:"alg"`
-	}
+	var header Header
 	data, err := safeDecode(parts[0])
 	if err != nil {
 		return fmt.Errorf("Malformed JWS header: %v", err)
@@ -75,6 +97,12 @@ func Verify(jws string, key crypto.PublicKey) error {
 	err = json.Unmarshal(data, &header)
 	if err != nil {
 		return fmt.Errorf("Failed to decode header: %v", err)
+	}
+
+	// acquire the public key
+	key, err := kp.GetJWSKey(header)
+	if err != nil {
+		return fmt.Errorf("Failed to acquire public key: %v", err)
 	}
 
 	// validate the signature

@@ -167,7 +167,7 @@ func TestVerify31_HMAC_SHA256(t *testing.T) {
 		t.Fatal("keyFromJWK: ", err)
 	}
 
-	err = Verify(jws, pubKey)
+	err = Verify(jws, ProviderFromKey(pubKey))
 	if err != nil {
 		t.Fatal("Verify: ", err)
 	}
@@ -183,7 +183,7 @@ func TestVerify31_RSASSA_PKCS_V1_5_SHA256(t *testing.T) {
 		t.Fatal("keyFromJWK: ", err)
 	}
 
-	err = Verify(jws, pubKey)
+	err = Verify(jws, ProviderFromKey(pubKey))
 	if err != nil {
 		t.Fatal("Verify: ", err)
 	}
@@ -199,7 +199,7 @@ func TestVerify31_ECDSA_P256_SHA256(t *testing.T) {
 		t.Fatal("keyFromJWK: ", err)
 	}
 
-	err = Verify(jws, pubKey)
+	err = Verify(jws, ProviderFromKey(pubKey))
 	if err != nil {
 		t.Fatal("Verify: ", err)
 	}
@@ -215,7 +215,7 @@ func TestVerify31_ECDSA_P521_SHA512(t *testing.T) {
 		t.Fatal("keyFromJWK: ", err)
 	}
 
-	err = Verify(jws, pubKey)
+	err = Verify(jws, ProviderFromKey(pubKey))
 	if err != nil {
 		t.Fatal("Verify: ", err)
 	}
@@ -225,7 +225,7 @@ func TestVerify31_ECDSA_P521_SHA512(t *testing.T) {
 func TestVerify31_NONE(t *testing.T) {
 	const jws = `eyJhbGciOiJub25lIn0.eyJpc3MiOiJqb2UiLA0KICJleHAiOjEzMDA4MTkzODAsDQogImh0dHA6Ly9leGFtcGxlLmNvbS9pc19yb290Ijp0cnVlfQ.`
 
-	err := Verify(jws, NoneKey)
+	err := Verify(jws, ProviderFromKey(NoneKey))
 	if err != nil {
 		t.Fatal("Verify: ", err)
 	}

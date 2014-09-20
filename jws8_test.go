@@ -41,7 +41,7 @@ func TestVerify8_HMAC_SHA26(t *testing.T) {
 		98, 61, 34, 61, 46, 33, 114, 5, 46, 79, 8, 192, 205, 154, 245, 103,
 		208, 128, 163}
 
-	err := Verify(jws, key)
+	err := Verify(jws, ProviderFromKey(key))
 	if err != nil {
 		t.Fatal("Verify: ", err)
 	}
@@ -79,7 +79,7 @@ func TestVerify8_RSA_SHA256(t *testing.T) {
 		117, 147, 57, 54, 60, 7, 3, 77, 111, 96, 111, 158,
 		33, 224, 84, 86, 202, 229, 233, 161})
 
-	err := Verify(jws, key)
+	err := Verify(jws, ProviderFromKey(key))
 	if err != nil {
 		t.Fatal("Verify: ", err)
 	}
@@ -101,7 +101,7 @@ func TestVerify8_ECDSA_P256_SHA256(t *testing.T) {
 		237, 185, 238, 185, 244, 179, 105, 93, 110, 169, 11,
 		36, 173, 138, 70, 35, 40, 133, 136, 229, 173})
 
-	err := Verify(jws, key)
+	err := Verify(jws, ProviderFromKey(key))
 	if err != nil {
 		t.Fatal("Verify: ", err)
 	}
@@ -129,7 +129,7 @@ func TestVerify8_ECDSA_P521_SHA512(t *testing.T) {
 		140, 190, 10, 145, 221, 0, 100, 198, 153, 154, 31,
 		110, 110, 103, 250, 221, 237, 228, 200, 200, 246})
 
-	err := Verify(jws, key)
+	err := Verify(jws, ProviderFromKey(key))
 	if err != nil {
 		t.Fatal("Verify: ", err)
 	}
@@ -139,7 +139,7 @@ func TestVerify8_ECDSA_P521_SHA512(t *testing.T) {
 func TestVerify8_Plaintext(t *testing.T) {
 	const jws = `eyJhbGciOiJub25lIn0.eyJpc3MiOiJqb2UiLA0KICJleHAiOjEzMDA4MTkzODAsDQogImh0dHA6Ly9leGFtcGxlLmNvbS9pc19yb290Ijp0cnVlfQ.`
 
-	err := Verify(jws, NoneKey)
+	err := Verify(jws, ProviderFromKey(NoneKey))
 	if err != nil {
 		t.Fatal("Verify: ", err)
 	}
