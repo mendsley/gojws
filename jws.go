@@ -45,9 +45,17 @@ type Algorithm string
 const (
 	ALG_NONE  = Algorithm("none")
 	ALG_HS256 = Algorithm("HS256")
+	ALG_HS384 = Algorithm("HS384")
+	ALG_HS512 = Algorithm("HS512")
 	ALG_RS256 = Algorithm("RS256")
+	ALG_RS384 = Algorithm("RS384")
+	ALG_RS512 = Algorithm("RS512")
 	ALG_ES256 = Algorithm("ES256")
+	ALG_ES384 = Algorithm("ES384")
 	ALG_ES512 = Algorithm("ES512")
+	ALG_PS256 = Algorithm("PS256")
+	ALG_PS384 = Algorithm("PS384")
+	ALG_PS512 = Algorithm("PS512")
 )
 
 // Public key to use for "none" algorithm. This type effectively
@@ -127,23 +135,34 @@ func VerifyAndDecode(jws string, kp KeyProvider) ([]byte, error) {
 			return nil, errors.New("Refusing to validate plaintext JWS")
 		}
 
-	case ALG_HS256:
+	case ALG_HS256, ALG_HS384, ALG_HS512:
 		symmetricKey, ok := key.([]byte)
 		if !ok {
 			return nil, fmt.Errorf("Expected symmetric ([]byte) key. Got %T", key)
 		}
 
-		hm := hmac.New(sha256.New, symmetricKey)
+		var hfunc func() hash.Hash
+		if header.Alg == ALG_HS256 {
+			hfunc = sha256.New
+		} else if header.Alg == ALG_HS384 {
+			hfunc = sha512.New384
+		} else if header.Alg == ALG_HS512 {
+			hfunc = sha512.New
+		} else {
+			panic("Algorithm logic error with " + header.Alg)
+		}
+
+		hm := hmac.New(hfunc, symmetricKey)
 		io.WriteString(hm, parts[0])
 		io.WriteString(hm, ".")
 		io.WriteString(hm, parts[1])
 
 		expectedSignature := hm.Sum(nil)
 		if !hmac.Equal(expectedSignature, signature) {
-			return nil, fmt.Errorf("Signature verification failed")
+			return nil, errors.New("Signature verification failed")
 		}
 
-	case ALG_RS256:
+	case ALG_RS256, ALG_RS384, ALG_RS512:
 		pubKey, ok := key.(*rsa.PublicKey)
 		if !ok {
 			privKey, ok := key.(*rsa.PrivateKey)
@@ -153,18 +172,32 @@ func VerifyAndDecode(jws string, kp KeyProvider) ([]byte, error) {
 			pubKey = &privKey.PublicKey
 		}
 
+		var htype crypto.Hash
+		var hs hash.Hash
+		if header.Alg == ALG_RS256 {
+			hs = sha256.New()
+			htype = crypto.SHA256
+		} else if header.Alg == ALG_RS384 {
+			hs = sha512.New384()
+			htype = crypto.SHA384
+		} else if header.Alg == ALG_RS512 {
+			hs = sha512.New()
+			htype = crypto.SHA512
+		} else {
+			panic("Algorithm logic error with " + header.Alg)
+		}
+
 		// generate hashed input
-		hs := sha256.New()
 		io.WriteString(hs, parts[0])
 		io.WriteString(hs, ".")
 		io.WriteString(hs, parts[1])
 
-		err = rsa.VerifyPKCS1v15(pubKey, crypto.SHA256, hs.Sum(nil), signature)
+		err = rsa.VerifyPKCS1v15(pubKey, htype, hs.Sum(nil), signature)
 		if err != nil {
-			return nil, fmt.Errorf("Signature verification failed")
+			return nil, errors.New("Signature verification failed")
 		}
 
-	case ALG_ES256, ALG_ES512:
+	case ALG_ES256, ALG_ES384, ALG_ES512:
 		pubKey, ok := key.(*ecdsa.PublicKey)
 		if !ok {
 			privKey, ok := key.(*ecdsa.PrivateKey)
@@ -180,6 +213,9 @@ func VerifyAndDecode(jws string, kp KeyProvider) ([]byte, error) {
 		if header.Alg == ALG_ES256 {
 			rSize, sSize = 32, 32
 			hs = sha256.New()
+		} else if header.Alg == ALG_ES384 {
+			rSize, sSize = 48, 48
+			hs = sha512.New384()
 		} else if header.Alg == ALG_ES512 {
 			rSize, sSize = 66, 66
 			hs = sha512.New()
@@ -189,7 +225,7 @@ func VerifyAndDecode(jws string, kp KeyProvider) ([]byte, error) {
 
 		// split signature into R and S
 		if len(signature) != rSize+sSize {
-			return nil, fmt.Errorf("Signature verification failed")
+			return nil, errors.New("Signature verification failed")
 		}
 
 		r, s := new(big.Int), new(big.Int)
@@ -202,7 +238,43 @@ func VerifyAndDecode(jws string, kp KeyProvider) ([]byte, error) {
 		io.WriteString(hs, parts[1])
 
 		if !ecdsa.Verify(pubKey, hs.Sum(nil), r, s) {
-			return nil, fmt.Errorf("Signature verification failed")
+			return nil, errors.New("Signature verification failed")
+		}
+
+	case ALG_PS256, ALG_PS384, ALG_PS512:
+		pubKey, ok := key.(*rsa.PublicKey)
+		if !ok {
+			privKey, ok := key.(*rsa.PrivateKey)
+			if !ok {
+				return nil, fmt.Errorf("Expected RSA key. Got %T", key)
+			}
+
+			pubKey = &privKey.PublicKey
+		}
+
+		var hs hash.Hash
+		var htype crypto.Hash
+		if header.Alg == ALG_PS256 {
+			hs = sha256.New()
+			htype = crypto.SHA256
+		} else if header.Alg == ALG_PS384 {
+			hs = sha512.New384()
+			htype = crypto.SHA384
+		} else if header.Alg == ALG_PS512 {
+			hs = sha512.New()
+			htype = crypto.SHA512
+		} else {
+			panic("Algorithm logic error with " + header.Alg)
+		}
+
+		// generate hashed input
+		io.WriteString(hs, parts[0])
+		io.WriteString(hs, ".")
+		io.WriteString(hs, parts[1])
+
+		err := rsa.VerifyPSS(pubKey, htype, hs.Sum(nil), signature, nil)
+		if err != nil {
+			return nil, errors.New("Signature verification failed")
 		}
 
 	default:
