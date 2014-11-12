@@ -88,7 +88,7 @@ func (sk singleKey) GetJWSKey(h Header) (crypto.PublicKey, error) {
 type Header struct {
 	Alg Algorithm `json:"alg"`
 	Typ string    `json:"typ,omitempty"`
-	Cty string    `json:"typ,omitempty"`
+	Cty string    `json:"cty,omitempty"`
 	Jku string    `json:"jku,omitempty"`
 	Jwk string    `json:"jkw,omitempty"`
 	X5u string    `json:"x5u,omitempty"`
