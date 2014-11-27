@@ -98,33 +98,37 @@ type Header struct {
 }
 
 // Verify the authenticity of a JWS signature
-func VerifyAndDecode(jws string, kp KeyProvider) ([]byte, error) {
+func VerifyAndDecodeWithHeader(jws string, kp KeyProvider) (header Header, payload []byte, err error) {
 	parts := strings.Split(jws, ".")
 	if len(parts) != 3 {
-		return nil, errors.New("Malformed JWS")
+		err = errors.New("Malformed JWS")
+		return
 	}
 
 	// decode the JWS header
-	var header Header
 	data, err := safeDecode(parts[0])
 	if err != nil {
-		return nil, fmt.Errorf("Malformed JWS header: %v", err)
+		err = fmt.Errorf("Malformed JWS header: %v", err)
+		return
 	}
 	err = json.Unmarshal(data, &header)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to decode header: %v", err)
+		err = fmt.Errorf("Failed to decode header: %v", err)
+		return
 	}
 
 	// acquire the public key
 	key, err := kp.GetJWSKey(header)
 	if err != nil {
-		return nil, fmt.Errorf("Failed to acquire public key: %v", err)
+		err = fmt.Errorf("Failed to acquire public key: %v", err)
+		return
 	}
 
 	// validate the signature
 	signature, err := safeDecode(parts[2])
 	if err != nil {
-		return nil, fmt.Errorf("Malformed JWS signature: %v", err)
+		err = fmt.Errorf("Malformed JWS signature: %v", err)
+		return
 	}
 
 	switch header.Alg {
@@ -132,13 +136,15 @@ func VerifyAndDecode(jws string, kp KeyProvider) ([]byte, error) {
 		// only allow plaintext if the caller explicitly passed in the
 		// "none" public key
 		if key != NoneKey {
-			return nil, errors.New("Refusing to validate plaintext JWS")
+			err = errors.New("Refusing to validate plaintext JWS")
+			return
 		}
 
 	case ALG_HS256, ALG_HS384, ALG_HS512:
 		symmetricKey, ok := key.([]byte)
 		if !ok {
-			return nil, fmt.Errorf("Expected symmetric ([]byte) key. Got %T", key)
+			err = fmt.Errorf("Expected symmetric ([]byte) key. Got %T", key)
+			return
 		}
 
 		var hfunc func() hash.Hash
@@ -159,7 +165,8 @@ func VerifyAndDecode(jws string, kp KeyProvider) ([]byte, error) {
 
 		expectedSignature := hm.Sum(nil)
 		if !hmac.Equal(expectedSignature, signature) {
-			return nil, errors.New("Signature verification failed")
+			err = errors.New("Signature verification failed")
+			return
 		}
 
 	case ALG_RS256, ALG_RS384, ALG_RS512:
@@ -167,7 +174,8 @@ func VerifyAndDecode(jws string, kp KeyProvider) ([]byte, error) {
 		if !ok {
 			privKey, ok := key.(*rsa.PrivateKey)
 			if !ok {
-				return nil, fmt.Errorf("Expected RSA key. Got %T", key)
+				err = fmt.Errorf("Expected RSA key. Got %T", key)
+				return
 			}
 			pubKey = &privKey.PublicKey
 		}
@@ -194,7 +202,8 @@ func VerifyAndDecode(jws string, kp KeyProvider) ([]byte, error) {
 
 		err = rsa.VerifyPKCS1v15(pubKey, htype, hs.Sum(nil), signature)
 		if err != nil {
-			return nil, errors.New("Signature verification failed")
+			err = errors.New("Signature verification failed")
+			return
 		}
 
 	case ALG_ES256, ALG_ES384, ALG_ES512:
@@ -202,7 +211,8 @@ func VerifyAndDecode(jws string, kp KeyProvider) ([]byte, error) {
 		if !ok {
 			privKey, ok := key.(*ecdsa.PrivateKey)
 			if !ok {
-				return nil, fmt.Errorf("Expected ECDSA key. Got %T", key)
+				err = fmt.Errorf("Expected ECDSA key. Got %T", key)
+				return
 			}
 
 			pubKey = &privKey.PublicKey
@@ -225,7 +235,8 @@ func VerifyAndDecode(jws string, kp KeyProvider) ([]byte, error) {
 
 		// split signature into R and S
 		if len(signature) != rSize+sSize {
-			return nil, errors.New("Signature verification failed")
+			err = errors.New("Signature verification failed")
+			return
 		}
 
 		r, s := new(big.Int), new(big.Int)
@@ -238,7 +249,8 @@ func VerifyAndDecode(jws string, kp KeyProvider) ([]byte, error) {
 		io.WriteString(hs, parts[1])
 
 		if !ecdsa.Verify(pubKey, hs.Sum(nil), r, s) {
-			return nil, errors.New("Signature verification failed")
+			err = errors.New("Signature verification failed")
+			return
 		}
 
 	case ALG_PS256, ALG_PS384, ALG_PS512:
@@ -246,7 +258,8 @@ func VerifyAndDecode(jws string, kp KeyProvider) ([]byte, error) {
 		if !ok {
 			privKey, ok := key.(*rsa.PrivateKey)
 			if !ok {
-				return nil, fmt.Errorf("Expected RSA key. Got %T", key)
+				err = fmt.Errorf("Expected RSA key. Got %T", key)
+				return
 			}
 
 			pubKey = &privKey.PublicKey
@@ -272,20 +285,27 @@ func VerifyAndDecode(jws string, kp KeyProvider) ([]byte, error) {
 		io.WriteString(hs, ".")
 		io.WriteString(hs, parts[1])
 
-		err := rsa.VerifyPSS(pubKey, htype, hs.Sum(nil), signature, nil)
+		err = rsa.VerifyPSS(pubKey, htype, hs.Sum(nil), signature, nil)
 		if err != nil {
-			return nil, errors.New("Signature verification failed")
+			err = errors.New("Signature verification failed")
+			return
 		}
 
 	default:
-		return nil, fmt.Errorf("Unknown signature algorithm: %s", header.Alg)
+		err = fmt.Errorf("Unknown signature algorithm: %s", header.Alg)
+		return
 	}
 
 	// decode the payload
-	payload, err := safeDecode(parts[1])
+	payload, err = safeDecode(parts[1])
 	if err != nil {
-		return nil, fmt.Errorf("Malformed JWS payload: %v", err)
+		err = fmt.Errorf("Malformed JWS payload: %v", err)
+		return
 	}
+	return
+}
 
-	return payload, nil
+func VerifyAndDecode(jws string, kp KeyProvider) (payload []byte, err error) {
+	_, payload, err = VerifyAndDecodeWithHeader(jws, kp)
+	return
 }
