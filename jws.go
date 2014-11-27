@@ -90,7 +90,7 @@ type Header struct {
 	Typ string    `json:"typ,omitempty"`
 	Cty string    `json:"typ,omitempty"`
 	Jku string    `json:"jku,omitempty"`
-	Jwk string    `json:"jkw,omitempty"`
+	Jwk string    `json:"jwk,omitempty"`
 	X5u string    `json:"x5u,omitempty"`
 	X5t string    `json:"x5t,omitempty"`
 	X5c string    `json:"x5c,omitempty"`
